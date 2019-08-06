@@ -60,6 +60,9 @@ enum ImmediateFormat {
 enum Instruction {
     AUIPC(u8, i32),
     JAL(u8, i32),
+    LB(u8, u8, i32),
+    LW(u8, u8, i32),
+    LD(u8, u8, i32),
     NOP,
 }
 
@@ -75,6 +78,15 @@ impl Instruction {
             } else {
                 println!("Opcode: {:#x} ({:#b})", opcode, opcode);
                 match opcode {
+                    0x3 => {
+                        println!("get_funct3: {:x}", Self::get_funct3(word));
+                        match Self::get_funct3(word) {
+                            0x0 => Some(Instruction::LB(Self::get_rs1(word), Self::get_rd(word), Self::get_s_imm(word))),
+                            0x2 => Some(Instruction::LW(Self::get_rs1(word), Self::get_rd(word), Self::get_s_imm(word))),
+                            0x3 => Some(Instruction::LD(Self::get_rs1(word), Self::get_rd(word), Self::get_s_imm(word))),
+                            _ => None   
+                        }
+                    }
                     0x17 => Some(Instruction::AUIPC(Self::get_rd(word), Self::get_u_imm(word))),
                     0x6f => Some(Instruction::JAL(Self::get_rd(word), Self::get_j_imm(word))),
                     _ => None::<Instruction>
@@ -103,6 +115,10 @@ impl Instruction {
         ((word >> 20) & 0b11111) as u8
     }
 
+    fn get_funct3(word: u32) -> u8 {
+        ((word >> 12) & 0b111) as u8
+    }
+
     fn get_u_imm(word: u32) -> i32 {
         ((word) & 0xFFFF_F000) as i32
     }
@@ -114,6 +130,14 @@ impl Instruction {
         }
 
         disp20 as i32
+    }
+
+    fn get_s_imm(word: u32) -> i32 {
+        let mut s_imm: u32 = ((word >> 7) & 0x1F) | ((word >> 20) & 0xFE0);
+        if s_imm & 0x800 == 0x800 {
+            s_imm |= 0xFFFF_F000;
+        }
+        s_imm as i32
     }
 }
 
@@ -236,6 +260,18 @@ impl CPU {
             Instruction::AUIPC(register, target_address) => {
                 let result = self.sign_extend_32_64(target_address);
                 self.registers.write_reg(register, result.wrapping_add(self.pc));
+                self.pc.wrapping_add(4)
+            }
+            Instruction::LW(rs1, rd, imm_s) => {
+                let address = self.registers.read_reg(rs1) + self.sign_extend_32_64(imm_s);
+                let loaded = self.bus.read_word(address);
+                self.registers.write_reg(rd, loaded as u64);
+                self.pc.wrapping_add(4)
+            }
+            Instruction::LD(rs1, rd, imm_s) => {
+                let address = self.registers.read_reg(rs1) + self.sign_extend_32_64(imm_s);
+                let loaded = self.bus.read_dword(address);
+                self.registers.write_reg(rd, loaded);
                 self.pc.wrapping_add(4)
             }
             _ => panic!("Instruction not implemented")
