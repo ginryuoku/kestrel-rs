@@ -202,7 +202,7 @@ impl CPU {
     }
 
     fn step(&mut self) {
-        let instruction_word = self.bus.read_word(self.pc as usize);
+        let instruction_word = self.bus.read_word(self.pc);
         let description = format!("0x{:x}", instruction_word);
         println!("Decoding instruction found at pc: 0x{:x}: {} {:#034b}, ", self.pc, description, instruction_word);
 
@@ -256,7 +256,7 @@ impl MemoryBus {
         }
     }
 
-    fn read_word(&self, address: usize) -> u32 {
+    fn read_word(&self, address: u64) -> u32 {
         let address = address as usize;
         match address {
             ROM_START ... ROM_END => {
@@ -310,7 +310,7 @@ impl MemoryBus {
         }
 
     }
-    fn write_word(&mut self, address: usize, value: u32) {
+    fn write_word(&mut self, address: u64, value: u32) {
         let address = address as usize;
         match address {
             ROM_START ... ROM_END => {
